@@ -1,8 +1,9 @@
 function toBeijingDate(date) {
   const d = date instanceof Date ? date : new Date(date);
   if (Number.isNaN(d.getTime())) return null;
-  const utcTime = d.getTime() + d.getTimezoneOffset() * 60000;
-  const beijing = new Date(utcTime + 8 * 60 * 60000);
+  // Date.getTime() 始终是 UTC 时间戳，这里直接加 8 小时，
+  // 然后用 UTC 的年月日来表示北京时间的“这一天”。
+  const beijing = new Date(d.getTime() + 8 * 60 * 60 * 1000);
   return new Date(
     beijing.getUTCFullYear(),
     beijing.getUTCMonth(),
@@ -37,4 +38,3 @@ module.exports = {
   getBeijingToday,
   addDaysBeijing,
 };
-
