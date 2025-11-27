@@ -3,12 +3,10 @@ const MAX_LINES = 500;
 const buffer = [];
 const listeners = new Set();
 
-const originalConsole = {
-  log: console.log.bind(console),
-  info: console.info.bind(console),
-  warn: console.warn.bind(console),
-  error: console.error.bind(console),
-};
+// 记录原始输出函数，便于在 hook 后继续写入容器 stdout/stderr，
+// 这样 docker logs 的行为保持不变。
+const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+const originalStderrWrite = process.stderr.write.bind(process.stderr);
 
 function pushLine(line) {
   if (typeof line !== 'string') return;
@@ -25,35 +23,36 @@ function pushLine(line) {
   }
 }
 
-function formatLine(level, args) {
-  const ts = new Date().toISOString();
-  const parts = args.map((arg) => {
-    if (typeof arg === 'string') return arg;
-    try {
-      return JSON.stringify(arg);
-    } catch (e) {
-      return String(arg);
-    }
-  });
-  return `[${ts}] [${level}] ${parts.join(' ')}`;
-}
-
-function makeWrapped(level) {
-  return (...args) => {
-    const line = formatLine(level, args);
-    pushLine(line);
-
-    const fn =
-      originalConsole[level.toLowerCase()] || originalConsole.log || console.log;
-    fn(...args);
-  };
-}
-
 function patchConsole() {
-  console.log = makeWrapped('INFO');
-  console.info = makeWrapped('INFO');
-  console.warn = makeWrapped('WARN');
-  console.error = makeWrapped('ERROR');
+  // 按行拦截 stdout/stderr，尽量还原 docker logs 的内容。
+  function createWriteWrapper(originalWrite) {
+    let pending = '';
+
+    return function write(chunk, encoding, callback) {
+      const str =
+        typeof chunk === 'string'
+          ? chunk
+          : chunk.toString(
+              typeof encoding === 'string' && encoding
+                ? encoding
+                : 'utf8'
+            );
+
+      pending += str;
+
+      let idx;
+      while ((idx = pending.indexOf('\n')) !== -1) {
+        const line = pending.slice(0, idx);
+        pending = pending.slice(idx + 1);
+        pushLine(line);
+      }
+
+      return originalWrite(chunk, encoding, callback);
+    };
+  }
+
+  process.stdout.write = createWriteWrapper(originalStdoutWrite);
+  process.stderr.write = createWriteWrapper(originalStderrWrite);
 }
 
 function getLogsSnapshot() {
@@ -72,4 +71,3 @@ module.exports = {
   getLogsSnapshot,
   addLogListener,
 };
-

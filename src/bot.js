@@ -122,7 +122,11 @@ function startWeWorkTestServer() {
   const port = parseInt(process.env.WEWORK_TEST_PORT || '7002', 10);
 
   const server = http.createServer(async (req, res) => {
-    const urlPath = (req.url || '').split('?')[0];
+    let urlPath = (req.url || '').split('?')[0] || '/';
+    // 统一去掉末尾的斜杠，避免 /webui/ 或 /wework/test/ 返回 404
+    if (urlPath.length > 1 && urlPath.endsWith('/')) {
+      urlPath = urlPath.slice(0, -1);
+    }
 
     if (req.method === 'GET' && urlPath === '/webui') {
       res.statusCode = 200;
@@ -285,6 +289,7 @@ async function startBot() {
       }
 
       const rawContent = event.raw_message || event.content || '';
+       console.log('[QQ] 收到消息：', rawContent);
       const result = await handleCommandText(rawContent, event);
       if (!result) return;
 
@@ -292,6 +297,7 @@ async function startBot() {
 
       for (const msg of messages) {
         if (!msg) continue;
+        console.log('[QQ] 发送回复：', msg);
         // qq-official-bot 的 reply 接口期望传入字符串或消息元素数组，
         // 这里直接传入纯文本字符串，由 SDK 负责构建消息。
         await event.reply(String(msg));
