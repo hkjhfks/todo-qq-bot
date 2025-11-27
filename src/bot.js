@@ -86,7 +86,6 @@ async function startBot() {
     sandbox: true,
     removeAt: true,
     logLevel: 'info',
-    maxRetry: 10,
     // 订阅：C2C 私聊、频道消息、频道私信
     intents: [
       'C2C_MESSAGE_CREATE',
@@ -94,7 +93,10 @@ async function startBot() {
       'GUILD_MESSAGES',
       'PUBLIC_GUILD_MESSAGES',
     ],
-    mode: ReceiverMode.WEBSOCKET,
+    // Webhook 模式：由 QQ 平台回调到本机 HTTP 服务
+    mode: ReceiverMode.WEBHOOK,
+    port: 7001,
+    path: '/qqbot/webhook',
   });
 
   bot.on('system.ready', () => {

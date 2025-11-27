@@ -6,7 +6,8 @@ services:
     container_name: todo-qq-bot
     env_file:
       - .env
+    ports:
+      - "7001:7001"
     restart: unless-stopped
     environment:
       - TZ=Asia/Shanghai
-
