@@ -1,11 +1,14 @@
 require('dotenv').config();
+const http = require('http');
 const { Bot, Intends, ReceiverMode } = require('qq-official-bot');
+const cron = require('node-cron');
 const {
   queryAllWithDeadline,
   queryTodayDue,
   query3DaysDue,
   queryCheckSummary,
 } = require('./todoQueries');
+const { sendDailyCheckMessages } = require('./weworkNotifier');
 
 function getRequiredEnv(name) {
   const value = process.env[name];
@@ -77,8 +80,82 @@ function isFromAdmin(event, adminOpenId) {
   return openid === adminOpenId;
 }
 
+function setupWeWorkSchedule() {
+  const webhookUrl = process.env.WEWORK_WEBHOOK_URL || '';
+  if (!webhookUrl.trim()) {
+    console.log('WEWORK_WEBHOOK_URL 未配置，不启用企业微信定时提醒。');
+    return;
+  }
+
+  // 每天北京时间 10:00 触发
+  cron.schedule(
+    '0 10 * * *',
+    async () => {
+      console.log('[WeWork] 开始执行每日 /check 定时任务');
+      try {
+        await sendDailyCheckMessages();
+        console.log('[WeWork] 每日 /check 定时任务完成');
+      } catch (err) {
+        console.error('[WeWork] 每日 /check 定时任务失败', err);
+      }
+    },
+    {
+      timezone: 'Asia/Shanghai',
+    }
+  );
+
+  console.log('已启用企业微信定时提醒（每天 10:00 北京时间）。');
+}
+
+function startWeWorkTestServer() {
+  const webhookUrl = process.env.WEWORK_WEBHOOK_URL || '';
+  if (!webhookUrl.trim()) {
+    console.log('WEWORK_WEBHOOK_URL 未配置，不启动企业微信测试 HTTP 接口。');
+    return;
+  }
+
+  const port = parseInt(process.env.WEWORK_TEST_PORT || '7002', 10);
+
+  const server = http.createServer(async (req, res) => {
+    const urlPath = (req.url || '').split('?')[0];
+
+    if (req.method === 'GET' && urlPath === '/wework/test') {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      try {
+        await sendDailyCheckMessages();
+        res.statusCode = 200;
+        res.end('OK: 已向企业微信群机器人发送 /check 测试消息。\n');
+      } catch (err) {
+        console.error('[WeWork] 测试接口触发失败', err);
+        res.statusCode = 500;
+        res.end('ERROR: 发送企业微信测试消息失败，请查看服务端日志。\n');
+      }
+      return;
+    }
+
+    res.statusCode = 404;
+    res.end('Not Found\n');
+  });
+
+  server.listen(port, () => {
+    console.log(
+      `企业微信测试接口已启动: http://localhost:${port}/wework/test (GET)`
+    );
+  });
+
+  server.on('error', (err) => {
+    console.error('企业微信测试 HTTP 接口启动失败', err);
+  });
+}
+
 async function startBot() {
   const config = getConfig();
+
+  // 启动企业微信定时任务（如果配置了 webhook）
+  setupWeWorkSchedule();
+
+  // 启动一个简单的 HTTP 测试接口，方便手动触发企业微信推送
+  startWeWorkTestServer();
 
   const bot = new Bot({
     appid: config.appid,

@@ -2,6 +2,8 @@
 
 基于 QQ 官方机器人开放平台 + Hugging Face dataset 的 TODO 提醒机器人，仅支持沙箱环境、自用。
 
+另外可选集成企业微信**群机器人**，每日定时主动推送 TODO 提醒。
+
 ### 目录结构
 
 - `src/hfClient.js`：从 Hugging Face dataset 读取 `todos.json`。
@@ -12,6 +14,7 @@
   - `/all`：所有有截止日期的未完成任务
   - `/check`：等价于原先“每日 10 点提醒”的逻辑：返回未来三天任务汇总，如果有今天截止的任务，再追加三条“今天截止的重要提醒”。
 - `src/bot.js`：QQ 官方机器人入口，处理消息并回复。
+- `src/weworkNotifier.js`：企业微信群机器人通知模块，复用 `/check` 的逻辑，每天定时推送到群里。
 
 ### 环境变量
 
@@ -27,6 +30,13 @@ QQ 机器人相关：
 - `QQ_BOT_APP_ID`：QQ 官方机器人应用的 `appId`。
 - `QQ_BOT_SECRET`：机器人密钥。
 - `QQ_ADMIN_OPENID`（可选）：仅响应该 openid 发来的指令；不设置则对所有用户指令生效。
+
+企业微信群机器人相关（可选）：
+
+- `WEWORK_WEBHOOK_URL`：企业微信「群机器人」的 webhook 完整地址，形如 `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx`。
+  - 配置后，服务会在**每天北京时间 10:00** 自动执行一次等价于 QQ `/check` 指令的逻辑：
+    - 第 1 条消息：未来三天（含今天）的未完成任务汇总。
+    - 如果有今天截止的任务，再额外连发 3 条相同的“今天截止的重要提醒”。
 
 ### 启动方式
 
