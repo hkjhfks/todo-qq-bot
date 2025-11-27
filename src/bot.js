@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { OfficialBot, EventType } = require('qq-official-bot');
+const { Bot, Intends, ReceiverMode } = require('qq-official-bot');
 const {
   queryAllWithDeadline,
   queryTodayDue,
@@ -17,8 +17,7 @@ function getRequiredEnv(name) {
 
 function getConfig() {
   return {
-    appId: getRequiredEnv('QQ_BOT_APP_ID'),
-    token: getRequiredEnv('QQ_BOT_TOKEN'),
+    appid: getRequiredEnv('QQ_BOT_APP_ID'),
     secret: getRequiredEnv('QQ_BOT_SECRET'),
     // 可选：限制只响应某个管理员
     adminOpenId: process.env.QQ_ADMIN_OPENID || '',
@@ -26,8 +25,10 @@ function getConfig() {
 }
 
 function extractUserOpenId(event) {
-  const user = event && event.user ? event.user : {};
-  return user.openid || user.id || '';
+  if (!event) return '';
+  // C2C / 频道私信 / 频道消息统一从 sender 上取 openid
+  const sender = event.sender || {};
+  return sender.user_openid || sender.member_openid || '';
 }
 
 async function handleCommandText(content, event) {
@@ -71,32 +72,43 @@ async function handleCommandText(content, event) {
 
 function isFromAdmin(event, adminOpenId) {
   if (!adminOpenId) return true;
-  const user = event.user || {};
-  const openid = user.openid || user.id;
+  const sender = event.sender || {};
+  const openid = sender.user_openid || sender.member_openid;
   return openid === adminOpenId;
 }
 
 async function startBot() {
   const config = getConfig();
 
-  const bot = new OfficialBot({
-    appId: config.appId,
-    token: config.token,
+  const bot = new Bot({
+    appid: config.appid,
     secret: config.secret,
     sandbox: true,
+    removeAt: true,
+    logLevel: 'info',
+    maxRetry: 10,
+    // 订阅：C2C 私聊、频道消息、频道私信
+    intents: [
+      'C2C_MESSAGE_CREATE',
+      'DIRECT_MESSAGE',
+      'GUILD_MESSAGES',
+      'PUBLIC_GUILD_MESSAGES',
+    ],
+    mode: ReceiverMode.WEBSOCKET,
   });
 
-  bot.on(EventType.READY, () => {
+  bot.on('system.ready', () => {
     console.log('QQ TODO Bot 已连接。');
   });
 
-  bot.on(EventType.MESSAGE_CREATE, async (event) => {
+  // 统一处理：私聊(C2C)、频道文本、频道私信
+  const handler = async (event) => {
     try {
       if (!isFromAdmin(event, config.adminOpenId)) {
         return;
       }
 
-      const rawContent = event.content || '';
+      const rawContent = event.raw_message || event.content || '';
       const result = await handleCommandText(rawContent, event);
       if (!result) return;
 
@@ -118,7 +130,11 @@ async function startBot() {
         // ignore
       }
     }
-  });
+  };
+
+  bot.on('message.private.friend', handler); // QQ 消息列表私聊
+  bot.on('message.private.direct', handler); // 频道私信
+  bot.on('message.guild', handler); // 频道文本消息
 
   await bot.start();
 }

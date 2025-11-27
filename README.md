@@ -25,7 +25,6 @@
 QQ 机器人相关：
 
 - `QQ_BOT_APP_ID`：QQ 官方机器人应用的 `appId`。
-- `QQ_BOT_TOKEN`：机器人令牌。
 - `QQ_BOT_SECRET`：机器人密钥。
 - `QQ_ADMIN_OPENID`（可选）：仅响应该 openid 发来的指令；不设置则对所有用户指令生效。
 
