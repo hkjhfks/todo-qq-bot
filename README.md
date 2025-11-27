@@ -57,7 +57,13 @@ vim .env  # 修改为你的真实配置
 docker build -t todo-qq-bot .
 ```
 
-3. 运行容器（使用 .env）：
+3. 直接使用 Docker Compose 运行：
+
+```bash
+docker compose up -d
+```
+
+或使用传统命令：
 
 ```bash
 docker run -d \
