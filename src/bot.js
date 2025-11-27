@@ -1,4 +1,9 @@
 require('dotenv').config();
+const { patchConsole, getLogsSnapshot, addLogListener } = require('./logger');
+
+// 在加载其他模块前先接管 console，便于捕获完整日志
+patchConsole();
+
 const http = require('http');
 const { Bot, Intends, ReceiverMode } = require('qq-official-bot');
 const cron = require('node-cron');
@@ -118,6 +123,98 @@ function startWeWorkTestServer() {
 
   const server = http.createServer(async (req, res) => {
     const urlPath = (req.url || '').split('?')[0];
+
+    if (req.method === 'GET' && urlPath === '/webui') {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.end(`<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>TODO QQ Bot 日志</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", sans-serif; background: #0b1020; color: #e5e7eb; }
+    header { padding: 12px 16px; background: #111827; border-bottom: 1px solid #1f2937; display: flex; align-items: center; justify-content: space-between; }
+    h1 { margin: 0; font-size: 16px; }
+    #status { font-size: 12px; color: #9ca3af; }
+    main { padding: 8px 16px 12px; }
+    #log { box-sizing: border-box; width: 100%; height: calc(100vh - 56px); background: #020617; border-radius: 4px; padding: 8px 10px; overflow-y: auto; font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; line-height: 1.4; white-space: pre-wrap; }
+    .line { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TODO QQ Bot Docker 日志</h1>
+    <div id="status">连接中...</div>
+  </header>
+  <main>
+    <div id="log"></div>
+  </main>
+  <script>
+    const logEl = document.getElementById('log');
+    const statusEl = document.getElementById('status');
+
+    function appendLine(text) {
+      const div = document.createElement('div');
+      div.className = 'line';
+      div.textContent = text;
+      const atBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 5;
+      logEl.appendChild(div);
+      if (atBottom) {
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+    }
+
+    const evtSource = new EventSource('/webui/logstream');
+
+    evtSource.onopen = function () {
+      statusEl.textContent = '已连接';
+    };
+
+    evtSource.onmessage = function (e) {
+      if (e && typeof e.data === 'string') {
+        appendLine(e.data);
+      }
+    };
+
+    evtSource.onerror = function () {
+      statusEl.textContent = '连接已断开，稍后自动重试';
+    };
+  </script>
+</body>
+</html>`);
+      return;
+    }
+
+    if (req.method === 'GET' && urlPath === '/webui/logstream') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      });
+
+      // 先推送历史日志
+      const history = getLogsSnapshot();
+      for (const line of history) {
+        res.write(`data: ${line.replace(/\r?\n/g, ' ')}\n\n`);
+      }
+
+      // 订阅后续日志
+      const unsubscribe = addLogListener((line) => {
+        try {
+          res.write(`data: ${line.replace(/\r?\n/g, ' ')}\n\n`);
+        } catch (e) {
+          // 写失败通常是连接已断开，忽略，稍后在 close 里清理
+        }
+      });
+
+      req.on('close', () => {
+        unsubscribe();
+      });
+
+      return;
+    }
 
     if (req.method === 'GET' && urlPath === '/wework/test') {
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
