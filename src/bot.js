@@ -25,9 +25,27 @@ function getConfig() {
   };
 }
 
-async function handleCommandText(content) {
+function extractUserOpenId(event) {
+  const user = event && event.user ? event.user : {};
+  return user.openid || user.id || '';
+}
+
+async function handleCommandText(content, event) {
   const text = (content || '').trim();
   if (!text.startsWith('/')) return null;
+
+  if (text === '/whoami') {
+    const openid = extractUserOpenId(event);
+    if (!openid) {
+      return '无法获取你的 openid，请稍后再试。';
+    }
+    return [
+      '你的 QQ openid 如下：',
+      openid,
+      '',
+      '可以将它填入 QQ_ADMIN_OPENID 环境变量中，仅允许该账号使用指令。'
+    ].join('\n');
+  }
 
   if (text === '/all') {
     return await queryAllWithDeadline();
@@ -79,7 +97,7 @@ async function startBot() {
       }
 
       const rawContent = event.content || '';
-      const result = await handleCommandText(rawContent);
+      const result = await handleCommandText(rawContent, event);
       if (!result) return;
 
       const messages = Array.isArray(result) ? result : [result];
