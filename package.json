@@ -1,0 +1,21 @@
+{
+  "name": "todo-qq-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/bot.js",
+  "scripts": {
+    "start": "node src/bot.js",
+    "dev": "node src/bot.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@huggingface/hub": "^2.7.1",
+    "dotenv": "^17.2.3",
+    "node-cron": "^4.2.1",
+    "qq-official-bot": "^1.0.11"
+  }
+}
