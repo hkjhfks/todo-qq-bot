@@ -118,16 +118,14 @@ async function startBot() {
 
       for (const msg of messages) {
         if (!msg) continue;
-        await event.reply({
-          content: msg,
-        });
+        // qq-official-bot 的 reply 接口期望传入字符串或消息元素数组，
+        // 这里直接传入纯文本字符串，由 SDK 负责构建消息。
+        await event.reply(String(msg));
       }
     } catch (err) {
       console.error('处理消息失败', err);
       try {
-        await event.reply({
-          content: '处理指令时出错，请稍后再试。',
-        });
+        await event.reply('处理指令时出错，请稍后再试。');
       } catch (e) {
         // ignore
       }
